@@ -8,6 +8,7 @@ import {
   type IngestionEventType,
   logger,
   OtelIngestionProcessor,
+  ClaudeCodeLogProcessor,
   processEventBatch,
   QueueName,
   recordDistribution,
@@ -30,6 +31,7 @@ export const otelIngestionQueueProcessor: Processor = async (
     const projectId = job.data.payload.authCheck.scope.projectId;
     const publicKey = job.data.payload.data.publicKey;
     const fileKey = job.data.payload.data.fileKey;
+    const isClaudeCodeLogs = job.data.payload.data.isClaudeCodeLogs || false;
     const auth = job.data.payload.authCheck;
 
     const span = getCurrentSpan();
@@ -43,8 +45,14 @@ export const otelIngestionQueueProcessor: Processor = async (
         "messaging.bullmq.job.input.fileKey",
         job.data.payload.data.fileKey,
       );
+      span.setAttribute(
+        "messaging.bullmq.job.input.isClaudeCodeLogs",
+        isClaudeCodeLogs,
+      );
     }
-    logger.debug(`Processing ${fileKey} for project ${projectId}`);
+    logger.debug(
+      `Processing ${fileKey} for project ${projectId} (Claude Code Logs: ${isClaudeCodeLogs})`,
+    );
 
     // TODO: Do we need to add these files into the blob_storage_file_log?
     // We could recommend lifecycle rules due to the immutability properties.
@@ -52,27 +60,37 @@ export const otelIngestionQueueProcessor: Processor = async (
     // Easy change, but needs alignment.
 
     // Download file from blob storage
-    const resourceSpans = await getS3EventStorageClient(
+    const rawData = await getS3EventStorageClient(
       env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
     ).download(fileKey);
 
     recordHistogram(
       "langfuse.ingestion.s3_file_size_bytes",
-      resourceSpans.length, // At this point it's still a string.
+      rawData.length, // At this point it's still a string.
       {
         skippedS3List: "true",
         otel: "true",
+        claudeCodeLogs: isClaudeCodeLogs.toString(),
       },
     );
 
-    // Generate events via OtelIngestionProcessor
-    const processor = new OtelIngestionProcessor({
-      projectId,
-      publicKey,
-    });
-    const parsedSpans = JSON.parse(resourceSpans);
-    const events: IngestionEventType[] =
-      await processor.processToIngestionEvents(parsedSpans);
+    const parsedData = JSON.parse(rawData);
+    let events: IngestionEventType[] = [];
+
+    // Generate events using the appropriate processor
+    if (isClaudeCodeLogs) {
+      const logProcessor = new ClaudeCodeLogProcessor({
+        projectId,
+        publicKey,
+      });
+      events = await logProcessor.processToIngestionEvents(parsedData);
+    } else {
+      const processor = new OtelIngestionProcessor({
+        projectId,
+        publicKey,
+      });
+      events = await processor.processToIngestionEvents(parsedData);
+    }
     // Here, we split the events into observations and non-observations.
     // Observations go into the IngestionService directly whereas the non-observations make another run through the processEventBatch method.
     const traces = events.filter(
@@ -93,13 +111,18 @@ export const otelIngestionQueueProcessor: Processor = async (
 
     // In the next row, we only consider observations. The traces will be recorded in processEventBatch.
     recordIncrement("langfuse.ingestion.event", observations.length, {
-      source: "otel",
+      source: isClaudeCodeLogs ? "claude-code" : "otel",
     });
     // Record more stats specific to the Otel processing
-    recordDistribution("langfuse.ingestion.otel.trace_count", traces.length);
+    recordDistribution("langfuse.ingestion.otel.trace_count", traces.length, {
+      claudeCodeLogs: isClaudeCodeLogs.toString(),
+    });
     recordDistribution(
       "langfuse.ingestion.otel.observation_count",
       observations.length,
+      {
+        claudeCodeLogs: isClaudeCodeLogs.toString(),
+      },
     );
     span?.setAttribute("langfuse.ingestion.otel.trace_count", traces.length);
     span?.setAttribute(
@@ -124,7 +147,10 @@ export const otelIngestionQueueProcessor: Processor = async (
     await Promise.all(
       [
         // Process traces
-        processEventBatch(traces, auth, { delay: 0, source: "otel" }),
+        processEventBatch(traces, auth, {
+          delay: 0,
+          source: isClaudeCodeLogs ? "claude-code" : "otel",
+        }),
         // Process observations
         observations.map((observation) =>
           ingestionService.mergeAndWrite(
@@ -142,9 +168,17 @@ export const otelIngestionQueueProcessor: Processor = async (
 
     // If inserts into the events table are enabled, we run the dedicated processing for the otel
     // spans and move them into the dedicated IngestionService processor.
-    if (env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true") {
+    // Note: For Claude Code logs, we skip this experimental feature as logs don't have the same structure as spans
+    if (
+      !isClaudeCodeLogs &&
+      env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true"
+    ) {
       try {
-        const events = processor.processToEvent(parsedSpans);
+        const processor = new OtelIngestionProcessor({
+          projectId,
+          publicKey,
+        });
+        const events = processor.processToEvent(parsedData);
         await Promise.all(
           events.map((e) => ingestionService.writeEvent(e, fileKey)),
         );

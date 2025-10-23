@@ -28,6 +28,7 @@ export const OtelIngestionEvent = z.object({
   data: z.object({
     fileKey: z.string(),
     publicKey: z.string().optional(),
+    isClaudeCodeLogs: z.boolean().optional(),
   }),
   authCheck: z.object({
     validKey: z.literal(true),
