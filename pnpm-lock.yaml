@@ -26,6 +26,9 @@ importers:
       braces:
         specifier: 3.0.3
         version: 3.0.3
+      cross-env:
+        specifier: ^7.0.3
+        version: 7.0.3
       dotenv-cli:
         specifier: ^7.4.4
         version: 7.4.4
