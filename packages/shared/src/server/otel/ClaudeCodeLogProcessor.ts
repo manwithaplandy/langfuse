@@ -321,6 +321,7 @@ export class ClaudeCodeLogProcessor {
         id: traceId,
         timestamp,
         name: "Claude Code Session",
+        environment: "default",
         sessionId:
           sessionId || (attributes["session.id"] as string) || undefined,
         userId: (attributes["user.id"] as string) || undefined,
