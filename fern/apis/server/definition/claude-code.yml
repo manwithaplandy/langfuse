@@ -1,0 +1,241 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+service:
+  auth: true
+  base-path: /api/public
+  endpoints:
+    exportClaudeCodeLogs:
+      docs: |
+        **Claude Code OpenTelemetry Logs to Traces Conversion Endpoint**
+
+        This endpoint enables full observability of Claude Code agent workflows by converting OpenTelemetry logs into hierarchical traces in Langfuse.
+
+        **Overview:**
+        Claude Code natively emits OpenTelemetry logs for various events like user prompts, tool executions, and API requests. This endpoint transforms these flat log events into a structured trace format.
+
+        **Supported Claude Code Events:**
+        - `claude_code.user_prompt` - User messages submitted to Claude Code
+        - `claude_code.tool_result` - Tool execution results (Read, Write, Edit, Bash, etc.)
+        - `claude_code.api_request` - Claude API requests with token usage
+        - `claude_code.api_error` - Failed API requests
+        - `claude_code.tool_decision` - Tool permission decisions
+
+        **Supported Formats:**
+        - Binary Protobuf: `Content-Type: application/x-protobuf`
+        - JSON Protobuf: `Content-Type: application/json`
+        - Supports gzip compression via `Content-Encoding: gzip` header
+
+        **Specification Compliance:**
+        - Conforms to [OTLP/HTTP Logs Export](https://opentelemetry.io/docs/specs/otlp/#otlphttp)
+        - Implements `ExportLogsServiceRequest` message format
+        - Converts logs to OTLP traces internally for Langfuse ingestion
+
+        **Benefits:**
+        - Track complete agent workflows and conversations
+        - Monitor tool usage and execution times
+        - Analyze API request patterns and token consumption
+        - Debug errors and tool failures
+        - Understand decision-making processes
+
+        **Configuration:**
+        Enable OpenTelemetry logging in Claude Code:
+        ```bash
+        export CLAUDE_CODE_ENABLE_TELEMETRY=1
+        export OTEL_LOGS_EXPORTER=otlp
+        export OTEL_EXPORTER_OTLP_ENDPOINT=<langfuse-endpoint>/api/public/claude-code/logs
+        export OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+        export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer <langfuse-api-key>"
+        ```
+
+        **Documentation:**
+        - Claude Code observability: https://langfuse.com/integrations/claude-code
+        - Data model: https://langfuse.com/docs/observability/data-model
+      method: POST
+      path: /claude-code/logs
+      request:
+        name: ClaudeCodeLogsRequest
+        body:
+          properties:
+            resourceLogs:
+              type: list<OtelResourceLogs>
+              docs: Array of resource logs containing Claude Code event data as defined in the OTLP specification
+        content-type: application/json
+      response: ClaudeCodeLogsResponse
+      examples:
+        - name: UserPromptEvent
+          docs: Example JSON payload for a user prompt event
+          request:
+            resourceLogs:
+              - resource:
+                  attributes:
+                    - key: service.name
+                      value:
+                        stringValue: "claude-code"
+                scopeLogs:
+                  - scope:
+                      name: "claude-code"
+                      version: "1.0.0"
+                    logRecords:
+                      - timeUnixNano: "1747872000000000000"
+                        severityNumber: 9
+                        severityText: "INFO"
+                        body:
+                          stringValue: "User submitted a prompt"
+                        attributes:
+                          - key: "prompt"
+                            value:
+                              stringValue: "Help me write a function to calculate fibonacci numbers"
+                          - key: "prompt_length"
+                            value:
+                              intValue: 54
+                        eventName: "claude_code.user_prompt"
+          response:
+            body: {}
+
+        - name: ToolResultEvent
+          docs: Example JSON payload for a tool execution result
+          request:
+            resourceLogs:
+              - resource:
+                  attributes:
+                    - key: service.name
+                      value:
+                        stringValue: "claude-code"
+                scopeLogs:
+                  - scope:
+                      name: "claude-code"
+                      version: "1.0.0"
+                    logRecords:
+                      - timeUnixNano: "1747872001000000000"
+                        severityNumber: 9
+                        severityText: "INFO"
+                        body:
+                          stringValue: "Tool execution completed"
+                        attributes:
+                          - key: "tool_name"
+                            value:
+                              stringValue: "Read"
+                          - key: "duration_ms"
+                            value:
+                              doubleValue: 150.5
+                          - key: "success"
+                            value:
+                              stringValue: "true"
+                          - key: "decision"
+                            value:
+                              stringValue: "accept"
+                          - key: "tool_parameters"
+                            value:
+                              stringValue: '{"file_path": "/home/user/test.ts"}'
+                        eventName: "claude_code.tool_result"
+          response:
+            body: {}
+
+        - name: APIRequestEvent
+          docs: Example JSON payload for a Claude API request with token usage
+          request:
+            resourceLogs:
+              - resource:
+                  attributes:
+                    - key: service.name
+                      value:
+                        stringValue: "claude-code"
+                scopeLogs:
+                  - scope:
+                      name: "claude-code"
+                      version: "1.0.0"
+                    logRecords:
+                      - timeUnixNano: "1747872002000000000"
+                        severityNumber: 9
+                        severityText: "INFO"
+                        body:
+                          stringValue: "API request completed"
+                        attributes:
+                          - key: "model"
+                            value:
+                              stringValue: "claude-sonnet-4-5-20250929"
+                          - key: "input_tokens"
+                            value:
+                              intValue: 1500
+                          - key: "output_tokens"
+                            value:
+                              intValue: 500
+                          - key: "cache_read_tokens"
+                            value:
+                              intValue: 1000
+                          - key: "duration_ms"
+                            value:
+                              doubleValue: 2500.0
+                        eventName: "claude_code.api_request"
+          response:
+            body: {}
+
+types:
+  OtelResourceLogs:
+    docs: Represents a collection of logs from a single resource as per OTLP logs specification
+    properties:
+      resource:
+        type: optional<OtelResource>
+        docs: Resource information
+      scopeLogs:
+        type: optional<list<OtelScopeLogs>>
+        docs: Array of scope logs
+
+  OtelScopeLogs:
+    docs: Collection of log records from a single instrumentation scope
+    properties:
+      scope:
+        type: optional<OtelScope>
+        docs: Instrumentation scope information
+      logRecords:
+        type: optional<list<OtelLogRecord>>
+        docs: Array of log records
+      schemaUrl:
+        type: optional<string>
+        docs: Schema URL for this scope
+
+  OtelLogRecord:
+    docs: Individual log record representing a Claude Code event
+    properties:
+      timeUnixNano:
+        type: optional<unknown>
+        docs: Event timestamp in nanoseconds since Unix epoch
+      observedTimeUnixNano:
+        type: optional<unknown>
+        docs: Observation timestamp in nanoseconds since Unix epoch
+      severityNumber:
+        type: optional<integer>
+        docs: Severity number (1-24, following OpenTelemetry specification)
+      severityText:
+        type: optional<string>
+        docs: Severity text (e.g., "INFO", "ERROR", "WARN")
+      body:
+        type: optional<OtelAttributeValue>
+        docs: Log message body
+      attributes:
+        type: optional<list<OtelAttribute>>
+        docs: Log attributes specific to the event type (e.g., tool_name, duration_ms, etc.)
+      droppedAttributesCount:
+        type: optional<integer>
+        docs: Number of attributes that were dropped
+      flags:
+        type: optional<integer>
+        docs: Trace flags
+      traceId:
+        type: optional<unknown>
+        docs: Associated trace ID if available (16 bytes)
+      spanId:
+        type: optional<unknown>
+        docs: Associated span ID if available (8 bytes)
+      eventName:
+        type: optional<string>
+        docs: |
+          Event name identifying the type of Claude Code event:
+          - claude_code.user_prompt
+          - claude_code.tool_result
+          - claude_code.api_request
+          - claude_code.api_error
+          - claude_code.tool_decision
+
+  ClaudeCodeLogsResponse:
+    docs: Response from Claude Code logs export request. Empty object or job info indicates success.
+    properties: {}
