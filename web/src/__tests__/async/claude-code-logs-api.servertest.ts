@@ -1,6 +1,6 @@
 import { makeAPICall } from "@/src/__tests__/test-utils";
 import waitForExpect from "wait-for-expect";
-import { getObservationById, getTraceById } from "@langfuse/shared/src/server";
+import { getTraceById } from "@langfuse/shared/src/server";
 import { randomBytes } from "crypto";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
@@ -48,7 +48,8 @@ describe("/api/public/claude-code/logs API Endpoint", () => {
                     {
                       key: "prompt",
                       value: {
-                        stringValue: "Help me write a function to calculate fibonacci numbers",
+                        stringValue:
+                          "Help me write a function to calculate fibonacci numbers",
                       },
                     },
                     {

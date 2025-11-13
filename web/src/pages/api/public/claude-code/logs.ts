@@ -90,9 +90,14 @@ export default withMiddlewares({
         (!contentType.includes("application/json") &&
           !contentType.includes("application/x-protobuf"))
       ) {
-        logger.error(`Invalid content type for Claude Code logs: ${contentType}`);
+        logger.error(
+          `Invalid content type for Claude Code logs: ${contentType}`,
+        );
         res.status(400);
-        return { error: "Invalid content type. Expected application/json or application/x-protobuf" };
+        return {
+          error:
+            "Invalid content type. Expected application/json or application/x-protobuf",
+        };
       }
 
       // Parse protobuf format
@@ -130,7 +135,9 @@ export default withMiddlewares({
         return { message: "No logs to process" };
       }
 
-      logger.info(`Processing ${resourceLogs.length} resource logs from Claude Code`);
+      logger.info(
+        `Processing ${resourceLogs.length} resource logs from Claude Code`,
+      );
 
       try {
         // Convert logs to traces
@@ -142,7 +149,9 @@ export default withMiddlewares({
           return { message: "No spans generated from logs" };
         }
 
-        logger.info(`Converted Claude Code logs to ${resourceSpans.length} resource spans`);
+        logger.info(
+          `Converted Claude Code logs to ${resourceSpans.length} resource spans`,
+        );
 
         // Process converted traces through existing OTel ingestion pipeline
         const processor = new OtelIngestionProcessor({
@@ -151,7 +160,8 @@ export default withMiddlewares({
         });
 
         // Upload to S3 and queue for processing
-        const result = await processor.publishToOtelIngestionQueue(resourceSpans);
+        const result =
+          await processor.publishToOtelIngestionQueue(resourceSpans);
 
         logger.info("Successfully queued Claude Code traces for processing", {
           projectId: auth.scope.projectId,

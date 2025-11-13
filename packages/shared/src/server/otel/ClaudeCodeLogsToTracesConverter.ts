@@ -77,28 +77,35 @@ interface ResourceSpan {
 }
 
 // Claude Code event types
+// eslint-disable-next-line no-unused-vars
 enum ClaudeCodeEventType {
+  // eslint-disable-next-line no-unused-vars
   USER_PROMPT = "claude_code.user_prompt",
+  // eslint-disable-next-line no-unused-vars
   TOOL_RESULT = "claude_code.tool_result",
+  // eslint-disable-next-line no-unused-vars
   API_REQUEST = "claude_code.api_request",
+  // eslint-disable-next-line no-unused-vars
   API_ERROR = "claude_code.api_error",
+  // eslint-disable-next-line no-unused-vars
   TOOL_DECISION = "claude_code.tool_decision",
 }
 
 // OpenTelemetry span kinds
+// eslint-disable-next-line no-unused-vars
 enum SpanKind {
-  UNSPECIFIED = 0,
+  // eslint-disable-next-line no-unused-vars
   INTERNAL = 1,
-  SERVER = 2,
+  // eslint-disable-next-line no-unused-vars
   CLIENT = 3,
-  PRODUCER = 4,
-  CONSUMER = 5,
 }
 
 // Status codes
+// eslint-disable-next-line no-unused-vars
 enum StatusCode {
-  UNSET = 0,
+  // eslint-disable-next-line no-unused-vars
   OK = 1,
+  // eslint-disable-next-line no-unused-vars
   ERROR = 2,
 }
 
@@ -150,7 +157,9 @@ class TraceBuilder {
     return this.traceId;
   }
 
-  private convertToNumber(value: number | { low: number; high: number }): number {
+  private convertToNumber(
+    value: number | { low: number; high: number },
+  ): number {
     if (typeof value === "number") {
       return value;
     }
@@ -183,8 +192,14 @@ export class ClaudeCodeLogsToTracesConverter {
             resource: {
               attributes: [
                 { key: "service.name", value: { stringValue: "claude-code" } },
-                { key: "telemetry.sdk.name", value: { stringValue: "opentelemetry" } },
-                { key: "telemetry.sdk.language", value: { stringValue: "nodejs" } },
+                {
+                  key: "telemetry.sdk.name",
+                  value: { stringValue: "opentelemetry" },
+                },
+                {
+                  key: "telemetry.sdk.language",
+                  value: { stringValue: "nodejs" },
+                },
               ],
             },
             scopeSpans: [
@@ -211,22 +226,14 @@ export class ClaudeCodeLogsToTracesConverter {
   }
 
   private processResourceLog(resourceLog: ResourceLogs) {
-    const resourceAttributes = this.extractAttributes(resourceLog.resource?.attributes);
-
     for (const scopeLog of resourceLog.scopeLogs ?? []) {
-      const scopeAttributes = this.extractAttributes(scopeLog.scope?.attributes);
-
       for (const logRecord of scopeLog.logRecords ?? []) {
-        this.processLogRecord(logRecord, resourceAttributes, scopeAttributes);
+        this.processLogRecord(logRecord);
       }
     }
   }
 
-  private processLogRecord(
-    logRecord: LogRecord,
-    resourceAttributes: Record<string, any>,
-    scopeAttributes: Record<string, any>,
-  ) {
+  private processLogRecord(logRecord: LogRecord) {
     const attributes = this.extractAttributes(logRecord.attributes);
     const eventName = logRecord.eventName ?? attributes.event_name ?? "";
 
@@ -236,7 +243,8 @@ export class ClaudeCodeLogsToTracesConverter {
       traceId = this.parseId(logRecord.traceId);
     } else {
       // Generate trace ID from session info or create new one
-      const sessionId = attributes.session_id ?? attributes.conversation_id ?? randomUUID();
+      const sessionId =
+        attributes.session_id ?? attributes.conversation_id ?? randomUUID();
       traceId = this.stringToTraceId(String(sessionId));
     }
 
@@ -255,8 +263,6 @@ export class ClaudeCodeLogsToTracesConverter {
       traceId,
       eventName,
       attributes,
-      resourceAttributes,
-      scopeAttributes,
     );
 
     if (span) {
@@ -274,8 +280,6 @@ export class ClaudeCodeLogsToTracesConverter {
     traceId: Buffer,
     eventName: string,
     attributes: Record<string, any>,
-    resourceAttributes: Record<string, any>,
-    scopeAttributes: Record<string, any>,
   ): Span | null {
     const spanId = logRecord.spanId
       ? this.parseId(logRecord.spanId)
@@ -296,7 +300,11 @@ export class ClaudeCodeLogsToTracesConverter {
     }
 
     // Determine parent span ID (null for root spans)
-    const parentSpanId = this.determineParentSpanId(eventName, attributes, logRecord);
+    const parentSpanId = this.determineParentSpanId(
+      eventName,
+      attributes,
+      logRecord,
+    );
 
     // Build span based on event type
     switch (eventName) {
@@ -352,7 +360,6 @@ export class ClaudeCodeLogsToTracesConverter {
           startTime,
           endTime,
           attributes,
-          logRecord,
         );
 
       default:
@@ -381,7 +388,10 @@ export class ClaudeCodeLogsToTracesConverter {
   ): Span {
     const spanAttributes: Array<{ key: string; value: any }> = [
       { key: "event.name", value: { stringValue: "user_prompt" } },
-      { key: LangfuseOtelSpanAttributes.OBSERVATION_TYPE, value: { stringValue: "SPAN" } },
+      {
+        key: LangfuseOtelSpanAttributes.OBSERVATION_TYPE,
+        value: { stringValue: "SPAN" },
+      },
     ];
 
     // Add prompt content if available
@@ -393,7 +403,11 @@ export class ClaudeCodeLogsToTracesConverter {
     } else if (logRecord.body) {
       spanAttributes.push({
         key: LangfuseOtelSpanAttributes.OBSERVATION_INPUT,
-        value: { stringValue: JSON.stringify({ body: this.extractBody(logRecord.body) }) },
+        value: {
+          stringValue: JSON.stringify({
+            body: this.extractBody(logRecord.body),
+          }),
+        },
       });
     }
 
@@ -433,20 +447,23 @@ export class ClaudeCodeLogsToTracesConverter {
     const spanAttributes: Array<{ key: string; value: any }> = [
       { key: "event.name", value: { stringValue: "tool_result" } },
       { key: "tool.name", value: { stringValue: toolName } },
-      { key: LangfuseOtelSpanAttributes.OBSERVATION_TYPE, value: { stringValue: "SPAN" } },
+      {
+        key: LangfuseOtelSpanAttributes.OBSERVATION_TYPE,
+        value: { stringValue: "SPAN" },
+      },
     ];
 
     // Map common tool names to Langfuse observation types
     const toolTypeMapping: Record<string, string> = {
-      "Read": "SPAN",
-      "Write": "SPAN",
-      "Edit": "SPAN",
-      "Bash": "SPAN",
-      "Grep": "SPAN",
-      "Glob": "SPAN",
-      "Task": "AGENT",
-      "WebFetch": "SPAN",
-      "WebSearch": "SPAN",
+      Read: "SPAN",
+      Write: "SPAN",
+      Edit: "SPAN",
+      Bash: "SPAN",
+      Grep: "SPAN",
+      Glob: "SPAN",
+      Task: "AGENT",
+      WebFetch: "SPAN",
+      WebSearch: "SPAN",
     };
 
     const observationType = toolTypeMapping[toolName] ?? "SPAN";
@@ -458,9 +475,10 @@ export class ClaudeCodeLogsToTracesConverter {
     // Add tool parameters as input
     if (attributes.tool_parameters) {
       try {
-        const params = typeof attributes.tool_parameters === "string"
-          ? JSON.parse(attributes.tool_parameters)
-          : attributes.tool_parameters;
+        const params =
+          typeof attributes.tool_parameters === "string"
+            ? JSON.parse(attributes.tool_parameters)
+            : attributes.tool_parameters;
         spanAttributes.push({
           key: LangfuseOtelSpanAttributes.OBSERVATION_INPUT,
           value: { stringValue: JSON.stringify(params) },
@@ -477,7 +495,11 @@ export class ClaudeCodeLogsToTracesConverter {
     if (logRecord.body) {
       spanAttributes.push({
         key: LangfuseOtelSpanAttributes.OBSERVATION_OUTPUT,
-        value: { stringValue: JSON.stringify({ result: this.extractBody(logRecord.body) }) },
+        value: {
+          stringValue: JSON.stringify({
+            result: this.extractBody(logRecord.body),
+          }),
+        },
       });
     }
 
@@ -518,8 +540,10 @@ export class ClaudeCodeLogsToTracesConverter {
 
     // Add metadata
     const metadata: Record<string, any> = {};
-    if (attributes.bash_command) metadata.bash_command = attributes.bash_command;
-    if (attributes.full_command) metadata.full_command = attributes.full_command;
+    if (attributes.bash_command)
+      metadata.bash_command = attributes.bash_command;
+    if (attributes.full_command)
+      metadata.full_command = attributes.full_command;
     if (attributes.timeout) metadata.timeout = attributes.timeout;
     if (attributes.description) metadata.description = attributes.description;
     if (attributes.sandbox) metadata.sandbox = attributes.sandbox;
@@ -542,7 +566,9 @@ export class ClaudeCodeLogsToTracesConverter {
       attributes: spanAttributes,
       status: {
         code: success ? StatusCode.OK : StatusCode.ERROR,
-        message: success ? undefined : String(attributes.error ?? "Tool execution failed"),
+        message: success
+          ? undefined
+          : String(attributes.error ?? "Tool execution failed"),
       },
     };
   }
@@ -558,7 +584,10 @@ export class ClaudeCodeLogsToTracesConverter {
   ): Span {
     const spanAttributes: Array<{ key: string; value: any }> = [
       { key: "event.name", value: { stringValue: "api_request" } },
-      { key: LangfuseOtelSpanAttributes.OBSERVATION_TYPE, value: { stringValue: "GENERATION" } },
+      {
+        key: LangfuseOtelSpanAttributes.OBSERVATION_TYPE,
+        value: { stringValue: "GENERATION" },
+      },
     ];
 
     // Add model info if available
@@ -579,7 +608,9 @@ export class ClaudeCodeLogsToTracesConverter {
       usageDetails.output = Number(attributes.output_tokens);
     }
     if (attributes.cache_creation_tokens) {
-      usageDetails.input_cache_creation = Number(attributes.cache_creation_tokens);
+      usageDetails.input_cache_creation = Number(
+        attributes.cache_creation_tokens,
+      );
     }
     if (attributes.cache_read_tokens) {
       usageDetails.input_cache_read = Number(attributes.cache_read_tokens);
@@ -607,7 +638,9 @@ export class ClaudeCodeLogsToTracesConverter {
     if (attributes.cost) {
       spanAttributes.push({
         key: LangfuseOtelSpanAttributes.OBSERVATION_COST_DETAILS,
-        value: { stringValue: JSON.stringify({ total: Number(attributes.cost) }) },
+        value: {
+          stringValue: JSON.stringify({ total: Number(attributes.cost) }),
+        },
       });
     }
 
@@ -654,8 +687,14 @@ export class ClaudeCodeLogsToTracesConverter {
   ): Span {
     const spanAttributes: Array<{ key: string; value: any }> = [
       { key: "event.name", value: { stringValue: "api_error" } },
-      { key: LangfuseOtelSpanAttributes.OBSERVATION_TYPE, value: { stringValue: "GENERATION" } },
-      { key: LangfuseOtelSpanAttributes.OBSERVATION_LEVEL, value: { stringValue: "ERROR" } },
+      {
+        key: LangfuseOtelSpanAttributes.OBSERVATION_TYPE,
+        value: { stringValue: "GENERATION" },
+      },
+      {
+        key: LangfuseOtelSpanAttributes.OBSERVATION_LEVEL,
+        value: { stringValue: "ERROR" },
+      },
     ];
 
     // Add error details
@@ -677,7 +716,9 @@ export class ClaudeCodeLogsToTracesConverter {
     if (logRecord.body) {
       spanAttributes.push({
         key: "error.details",
-        value: { stringValue: JSON.stringify(this.extractBody(logRecord.body)) },
+        value: {
+          stringValue: JSON.stringify(this.extractBody(logRecord.body)),
+        },
       });
     }
 
@@ -704,11 +745,13 @@ export class ClaudeCodeLogsToTracesConverter {
     startTime: number | { low: number; high: number },
     endTime: number | { low: number; high: number },
     attributes: Record<string, any>,
-    logRecord: LogRecord,
   ): Span {
     const spanAttributes: Array<{ key: string; value: any }> = [
       { key: "event.name", value: { stringValue: "tool_decision" } },
-      { key: LangfuseOtelSpanAttributes.OBSERVATION_TYPE, value: { stringValue: "EVENT" } },
+      {
+        key: LangfuseOtelSpanAttributes.OBSERVATION_TYPE,
+        value: { stringValue: "EVENT" },
+      },
     ];
 
     if (attributes.tool_name) {
@@ -757,7 +800,10 @@ export class ClaudeCodeLogsToTracesConverter {
   ): Span {
     const spanAttributes: Array<{ key: string; value: any }> = [
       { key: "event.name", value: { stringValue: eventName } },
-      { key: LangfuseOtelSpanAttributes.OBSERVATION_TYPE, value: { stringValue: "SPAN" } },
+      {
+        key: LangfuseOtelSpanAttributes.OBSERVATION_TYPE,
+        value: { stringValue: "SPAN" },
+      },
     ];
 
     // Add all attributes
@@ -774,7 +820,9 @@ export class ClaudeCodeLogsToTracesConverter {
     if (logRecord.body) {
       spanAttributes.push({
         key: "log.body",
-        value: { stringValue: JSON.stringify(this.extractBody(logRecord.body)) },
+        value: {
+          stringValue: JSON.stringify(this.extractBody(logRecord.body)),
+        },
       });
     }
 
@@ -817,7 +865,9 @@ export class ClaudeCodeLogsToTracesConverter {
 
   // Utility methods
 
-  private extractAttributes(attributes?: Array<{ key: string; value: any }>): Record<string, any> {
+  private extractAttributes(
+    attributes?: Array<{ key: string; value: any }>,
+  ): Record<string, any> {
     if (!attributes) return {};
 
     const result: Record<string, any> = {};
@@ -836,7 +886,9 @@ export class ClaudeCodeLogsToTracesConverter {
     if (value.doubleValue !== undefined) return value.doubleValue;
     if (value.bytesValue !== undefined) return value.bytesValue;
     if (value.arrayValue) {
-      return value.arrayValue.values?.map((v: any) => this.extractAnyValue(v)) ?? [];
+      return (
+        value.arrayValue.values?.map((v: any) => this.extractAnyValue(v)) ?? []
+      );
     }
     if (value.kvlistValue) {
       const obj: Record<string, any> = {};
@@ -863,13 +915,15 @@ export class ClaudeCodeLogsToTracesConverter {
       return { boolValue: value };
     }
     if (typeof value === "number") {
-      return Number.isInteger(value) ? { intValue: value } : { doubleValue: value };
+      return Number.isInteger(value)
+        ? { intValue: value }
+        : { doubleValue: value };
     }
     if (Array.isArray(value)) {
       return {
         arrayValue: {
-          values: value.map((v) => this.toAnyValue(v))
-        }
+          values: value.map((v) => this.toAnyValue(v)),
+        },
       };
     }
     if (typeof value === "object" && value !== null) {
@@ -906,7 +960,9 @@ export class ClaudeCodeLogsToTracesConverter {
     return hash;
   }
 
-  private convertToNumber(value: number | { low: number; high: number }): number {
+  private convertToNumber(
+    value: number | { low: number; high: number },
+  ): number {
     if (typeof value === "number") {
       return value;
     }
