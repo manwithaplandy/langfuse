@@ -1,24 +1,6 @@
 import { sessionsViewCols } from "@langfuse/shared";
 import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
-import type { ColumnToQueryKeyMap } from "@/src/features/filters/lib/filter-query-encoding";
 import type { ColumnToBackendKeyMap } from "@/src/features/filters/lib/filter-transform";
-
-const SESSION_COLUMN_TO_QUERY_KEY: ColumnToQueryKeyMap = {
-  bookmarked: "bookmarked",
-  environment: "environment",
-  userIds: "userIds",
-  tags: "tags",
-  sessionDuration: "sessionDuration",
-  countTraces: "countTraces",
-  inputCost: "inputCost",
-  outputCost: "outputCost",
-  totalCost: "totalCost",
-  inputTokens: "inputTokens",
-  outputTokens: "outputTokens",
-  totalTokens: "totalTokens",
-  score_categories: "score_categories",
-  scores_avg: "scores_avg",
-};
 
 /**
  * Maps frontend column IDs to backend-expected column IDs
@@ -31,24 +13,20 @@ export const SESSION_COLUMN_TO_BACKEND_KEY: ColumnToBackendKeyMap = {
 export const sessionFilterConfig: FilterConfig = {
   tableName: "sessions",
 
-  columnToQueryKey: SESSION_COLUMN_TO_QUERY_KEY,
-
   columnDefinitions: sessionsViewCols,
 
   defaultExpanded: ["environment", "bookmarked"],
 
   facets: [
     {
-      type: "boolean" as const,
-      column: "bookmarked",
-      label: "Bookmarked",
-      trueLabel: "Bookmarked",
-      falseLabel: "Not bookmarked",
-    },
-    {
       type: "categorical" as const,
       column: "environment",
       label: "Environment",
+    },
+    {
+      type: "string" as const,
+      column: "id",
+      label: "Session ID",
     },
     {
       type: "categorical" as const,
@@ -59,6 +37,13 @@ export const sessionFilterConfig: FilterConfig = {
       type: "categorical" as const,
       column: "tags",
       label: "Trace Tags",
+    },
+    {
+      type: "boolean" as const,
+      column: "bookmarked",
+      label: "Bookmarked",
+      trueLabel: "Bookmarked",
+      falseLabel: "Not bookmarked",
     },
     {
       type: "numeric" as const,
